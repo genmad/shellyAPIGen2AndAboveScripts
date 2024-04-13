@@ -34,10 +34,10 @@ let configs=[
 
 //power measuring device
 let netPowerConfig = {
-		type: "local" // choose between local e.g. this script is running on a gen2 device which can measure net power	
-					  // or remote e.g. this script is running on a gen2 device which can not measure net power	 -- not yet supported/implemented
-					  // mqtt not yet supported /implemented just an idea
-//		, address: "total_act_power" // the address of the powerreading required for remote or mqtt
+		type: "mqtt" // choose between local e.g. this script is running on a gen2 device which can measure net power	
+					  // or http e.g. this script is running on a gen2 device which can not measure net power and pulls the power readings by http requests	 -- not yet supported/implemented
+					  // or mqtt get the power readings delivered by mqtt topic ( provide the topic in address)
+		, address: "solar/dtuOnBattery/ac/power" // the address of the powerreading required for http or mqtt
 	};
 
 
@@ -79,8 +79,17 @@ function initialize(){
   					}
 				}, null);
 			break;
+		case 'mqtt':
+			MQTT.subscribe(netPowerConfig.address, UpdateNetPower);	
+			break;
 	}
 }
+
+// update the netPower from mqtt message
+function UpdateNetPower( topic, message){
+    netPower = message;
+}
+
 
 // send the virtual power meter reading to the requester
 function VirtualPowerMeterReadings( request, response, index){
