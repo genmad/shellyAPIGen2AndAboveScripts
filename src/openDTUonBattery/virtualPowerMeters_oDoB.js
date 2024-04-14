@@ -8,7 +8,7 @@
 * are then used to feed an controller of oDoB.
 * The multiple controller will be cascaded so that at each 
 * point in time only one controller is working and the others 
-* are off or at their maximum power delivery. 
+* are off or at their minimum power delivery. 
 *
 * with this all said, it is noteworthy, that all controllers 
 * are connected to the same DC power supply system 
@@ -25,16 +25,17 @@ let scriptId=3;
 // the order in which the controller are added reflects the cascade order, first controller added is the first 
 // in the cascade, the later are following then
 // nominalPower_Watt : the maximum power the controller can provide
+// minRequiredPower_Watt: the minimum Power required to run the controller/inverter,
 // httpServerEndpoint : the address under which the the virtual powermeter is reachable
 // mqttControllerPowerTopic : the topic of the mqtt server at which the current power off the controler is posted
 let configs=[
-  		{ nominalPower_Watt: 100, httpServerEndpoint: 'pwr1', mqttControllerPowerTopic: 'solar/dtuOnBattery/ac/power'}
-	, 	{ nominalPower_Watt: 800, httpServerEndpoint: 'pwr2', mqttControllerPowerTopic: 'solar/dtuOnBattery2/ac/power' }
+  		{ nominalPower_Watt: 100, minRequiredPower_Watt: 50, httpServerEndpoint: 'pwr1', mqttControllerPowerTopic: 'solar/dtuOnBattery/ac/power'}
+	, 	{ nominalPower_Watt: 800, minRequiredPower_Watt: 80, httpServerEndpoint: 'pwr2', mqttControllerPowerTopic: 'solar/dtuOnBattery2/ac/power' }
 ];
 
 //power measuring device
 let netPowerConfig = {
-		type: "mqtt" // choose between local e.g. this script is running on a gen2 device which can measure net power	
+		type: "local" // choose between local e.g. this script is running on a gen2 device which can measure net power	
 					  // or http e.g. this script is running on a gen2 device which can not measure net power and pulls the power readings by http requests	 -- not yet supported/implemented
 					  // or mqtt get the power readings delivered by mqtt topic ( provide the topic in address)
 		, address: "solar/dtuOnBattery/ac/power" // the address of the powerreading required for http or mqtt
@@ -115,9 +116,10 @@ function calculateVirtualPowerReadings( index){
 	var powerOffAllOtherInverters = generatedPower - previousPower[index];
 //	print([generatedPower, previousPower[index]])
 	var virtualPowerMeter = netPower + powerOffAllOtherInverters - startPower[index];
-//	print([ index, powerOffAllOtherInverters, netPower ,virtualPowerMeter])
-	return virtualPowerMeter;
+//  limiting the power so that at least each controller recieves its minimum power configured
+	var limitedPowerMeter = Math.max( configs[index].minRequiredPower_Watt - previousPower[index], virtualPowerMeter);
+//	print([ index, powerOffAllOtherInverters, netPower ,limitedPowerMeter])
+	return limitedPowerMeter;
 }
-
 
 initialize();
