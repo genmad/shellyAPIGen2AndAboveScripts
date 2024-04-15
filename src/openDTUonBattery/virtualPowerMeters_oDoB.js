@@ -26,11 +26,10 @@ let scriptId=3;
 // in the cascade, the later are following then
 // nominalPower_Watt : the maximum power the controller can provide
 // minRequiredPower_Watt: the minimum Power required to run the controller/inverter,
-// httpServerEndpoint : the address under which the the virtual powermeter is reachable
 // mqttControllerPowerTopic : the topic of the mqtt server at which the current power off the controler is posted
 let configs=[
-  		{ nominalPower_Watt: 100, minRequiredPower_Watt: 50, httpServerEndpoint: 'pwr1', mqttControllerPowerTopic: 'solar/dtuOnBattery/ac/power'}
-	, 	{ nominalPower_Watt: 800, minRequiredPower_Watt: 80, httpServerEndpoint: 'pwr2', mqttControllerPowerTopic: 'solar/dtuOnBattery2/ac/power' }
+  		{ nominalPower_Watt: 100, minRequiredPower_Watt: 50, mqttControllerPowerTopic: 'solar/dtuOnBattery/ac/power'}
+	, 	{ nominalPower_Watt: 800, minRequiredPower_Watt: 80, mqttControllerPowerTopic: 'solar/dtuOnBattery2/ac/power'}
 ];
 
 //power measuring device
@@ -40,6 +39,11 @@ let netPowerConfig = {
 					  // or mqtt get the power readings delivered by mqtt topic ( provide the topic in address)
 		, address: "solar/dtuOnBattery/ac/power" // the address of the powerreading required for http or mqtt
 	};
+	
+// Configuration of hardware:
+// in your contorller i ( on position i) in the configs variable (see above) (i=1..n)
+// define in Powermeter the mode https + Json and use http://<Shelly ip this script runs on>/script/<scriptId>/pwr<i> e.g. for controller2 -> http://1.1.1.1/script/1/pwr2
+// the Json path is always PWR
 
 
 // -------------------------------------------------- configure above this line, don't touch anything underneath this line !!! -------------------------------------------
@@ -68,7 +72,7 @@ function initialize(){
 		cumulatedPower = cumulatedPower + configs[i].nominalPower_Watt;
 		previousPower[i] =0;
 		MQTT.subscribe(configs[i].mqttControllerPowerTopic, UpdateControllerPower, i);
-		HTTPServer.registerEndpoint( configs[i].httpServerEndpoint, VirtualPowerMeterReadings, i)
+		HTTPServer.registerEndpoint( "pwr" + (i+1) , VirtualPowerMeterReadings, i)
 	}
 	// configure netPower readings
 	switch (netPowerConfig.type){
