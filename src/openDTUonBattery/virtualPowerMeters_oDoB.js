@@ -97,7 +97,7 @@ function VirtualPowerMeterReadings( request, response, index){
 //    print(index);
 	var virtualPowerMeter = calculateVirtualPowerReadings( index);
 //	print("VPM: " + virtualPowerMeter);
-	response.body = "PWR: " + JSON.stringify(virtualPowerMeter);
+    response.body = JSON.stringify( { PWR : virtualPowerMeter } );
 	response.code = 200;
     response.send();
 }
