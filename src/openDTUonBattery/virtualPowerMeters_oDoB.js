@@ -26,10 +26,10 @@ let scriptId=3;
 // in the cascade, the later are following then
 // nominalPower_Watt : the maximum power the controller can provide
 // minRequiredPower_Watt: the minimum Power required to run the controller/inverter,
-// mqttControllerPowerTopic : the topic of the mqtt server at which the current power off the controler is posted
+// mqttControllerBasicTopic : the basic topic of the controller given under mqtt
 let configs=[
-  		{ nominalPower_Watt: 100, minRequiredPower_Watt: 50, mqttControllerPowerTopic: 'solar/dtuOnBattery/ac/power'}
-	, 	{ nominalPower_Watt: 800, minRequiredPower_Watt: 80, mqttControllerPowerTopic: 'solar/dtuOnBattery2/ac/power'}
+  		{ nominalPower_Watt: 100, minRequiredPower_Watt: 50, mqttControllerBasicTopic: 'solar/dtuOnBattery/'}
+	, 	{ nominalPower_Watt: 800, minRequiredPower_Watt: 80, mqttControllerBasicTopic: 'solar/dtuOnBattery2/'}
 ];
 
 //power measuring device
@@ -71,7 +71,8 @@ function initialize(){
 		startPower[i] = cumulatedPower;
 		cumulatedPower = cumulatedPower + configs[i].nominalPower_Watt;
 		previousPower[i] =0;
-		MQTT.subscribe(configs[i].mqttControllerPowerTopic, UpdateControllerPower, i);
+		if (configs[i].mqttControllerBasicTopic.substr(-1) != '/') configs[i].mqttControllerBasicTopic += '/';
+		MQTT.subscribe(configs[i].mqttControllerBasicTopic + "ac/power", UpdateControllerPower, i);
 		HTTPServer.registerEndpoint( "pwr" + (i+1) , VirtualPowerMeterReadings, i)
 	}
 	// configure netPower readings
