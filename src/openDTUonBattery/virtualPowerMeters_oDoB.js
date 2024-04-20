@@ -9,6 +9,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+
 /**
 *
 * Virtual powermeter for open DTU on Battery (oDoB)
@@ -55,8 +57,11 @@ let netPowerConfig = {
 	};
 	
 // Configuration of hardware:
-// in your contorller i ( on position i) in the configs variable (see above) (i=1..n)
-// define in Powermeter the mode https + Json and use http://<Shelly ip this script runs on>/script/<scriptId>/pwr<i> e.g. for controller2 -> http://1.1.1.1/script/1/pwr2
+// in your oDoB contorller i ( on position i) in the configs variable (see above) (i=1..n)
+// define in Powermeter the mode https + Json and use http://<Shelly ip this script runs on>/script/<scriptId>/pwr<i> 
+// e.g. assume the ip of the shelly on which this script runs on to be: 1.2.3.4, 
+// the script id of this script to be 7 and you want to configure the 2nd  odob controller
+// then use:  http://1.2.3.4/script/7/pwr2
 // the Json path is always PWR
 
 
