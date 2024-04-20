@@ -1,3 +1,14 @@
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 /**
 *
 * Virtual powermeter for open DTU on Battery (oDoB)
@@ -8,13 +19,16 @@
 * are then used to feed an controller of oDoB.
 * The multiple controller will be cascaded so that at each 
 * point in time only one controller is working and the others 
-* are off or at their minimum power delivery. 
+* are independently either at their configured minimum power delivery
+* or at their maximum power delivery. 
 *
-* with this all said, it is noteworthy, that all controllers 
+* With this all said, it is noteworthy, that all controllers 
 * are connected to the same DC power supply system 
 * ( solarpanels and batteries).
 *
 **/
+
+// version 0.1
 
 
 // set script ID here
@@ -123,7 +137,10 @@ function calculateVirtualPowerReadings( index){
 	var virtualPowerMeter = netPower + powerOffAllOtherInverters - startPower[index];
 //  limiting the power so that at least each controller recieves its minimum power configured
 	var limitedPowerMeter = Math.max( configs[index].minRequiredPower_Watt - previousPower[index], virtualPowerMeter);
-//	print([ index, powerOffAllOtherInverters, netPower ,limitedPowerMeter])
+//	print("Index: " + index);
+//	print("Netpower: " + netpower);
+//	print("VirtualPowerMeter: " + virtualPowerMeter)
+//	print("limitedPowerMeter: " + limitedPowerMeter)
 	return limitedPowerMeter;
 }
 
