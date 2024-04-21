@@ -49,20 +49,28 @@ let configs=[
 ];
 
 //power measuring device
-let netPowerConfig = {
-		type: "local" // choose between local e.g. this script is running on a gen2 device which can measure net power	
-					  // or http e.g. this script is running on a gen2 device which can not measure net power and pulls the power readings by http requests	 -- not yet supported/implemented
-					  // or mqtt get the power readings delivered by mqtt topic ( provide the topic in address)
-		, address: "solar/dtuOnBattery/ac/power" // the address of the powerreading required for http or mqtt
+	// choose between "local" e.g. this script is running on a gen2 device which can measure net power ( nothing else needs to be configured for the powerreading)
+	// or "http" e.g. pulls the power readings by http requests ( configure http settings in httpConfig underneath)
+	// or "mqtt" get the power readings delivered by mqtt topic ( configure mqtt settings in mqttConfig underneath)
+let netPowerConfig = "http" // choose one off "local", "mqtt" or "http"
+
+// configure mqtt access ( path to the power reading)
+let mqttConfig = { topic: "solar/dtuOnBattery/ac/power" } // the topic of the powerreading required for mqtt
+
+// configure http access ( path to the power reading)
+let httpConfig = {
+		 address: "http://192.168.178.67/api/livedata/status/inverters" // the address of the powerreading required
+		, jsonPath: "/em:0/total_act_power" // jsonPath for parsing the message for the powerreading
 	};
+
 	
-// Configuration of hardware:
-// in your oDoB contorller i ( on position i) in the configs variable (see above) (i=1..n)
+// Configuration of your oDoB contorller i ( on position i) in the configs variable (see above) (i=1..n)
+//
 // define in Powermeter the mode https + Json and use http://<Shelly ip this script runs on>/script/<scriptId>/pwr<i> 
 // e.g. assume the ip of the shelly on which this script runs on to be: 1.2.3.4, 
 // the script id of this script to be 7 and you want to configure the 2nd  odob controller
 // then use:  http://1.2.3.4/script/7/pwr2
-// the Json path is always PWR
+// the Json path is always pwr
 
 
 // -------------------------------------------------- configure above this line, don't touch anything underneath this line !!! -------------------------------------------
@@ -95,35 +103,59 @@ function initialize(){
 		HTTPServer.registerEndpoint( "pwr" + (i+1) , VirtualPowerMeterReadings, i)
 	}
 	// configure netPower readings
-	switch (netPowerConfig.type){
-		case 'local':	
-			Shelly.addStatusHandler( function(event, userdata){
-	  			    // Runs when a new Power reading is comming in  					
-				    if (typeof event.delta.total_act_power !== "undefined") {
+	switch (netPowerConfig.toLowerCase()){
+		case 'local':
+			Shelly.addStatusHandler( 
+				function(event, userdata){
+					// Runs when a new Power reading is comming in
+					if (typeof event.delta.total_act_power !== "undefined") {
 						netPower = event.delta.total_act_power;
-  					}
-				}, null);
+					}
+				}
+				, null);
 			break;
 		case 'mqtt':
-			MQTT.subscribe(netPowerConfig.address, UpdateNetPower);	
+			MQTT.subscribe(mqttConfig.topic, UpdateNetPowerMQTT);
+			break;
+		case 'http':
+			// call every second, repeatedly, the httpTimer function
+			Timer.set(1000,true, httpTimer);
 			break;
 	}
 }
 
-// update the netPower from mqtt message
-function UpdateNetPower( topic, message){
-    netPower = message;
+// cyclicly update the net power when http is configured
+function httpTimer( userdata){
+	Shelly.call("HTTP.GET", {url: httpConfig.address}, processHttpResponseForNetPower);
 }
 
+// process the http Response of the power Meter configured with http polling
+function processHttpResponseForNetPower( result, error_code, error) {
+	if (error_code != 0) {
+		// something went wrong ... what shall we do?? ( with a drunken sailor?)
+		print("HttpRequest to powerMeter Failed with error code: ");
+		print(error_code);
+		print("\nand Error: ")
+		print(error);
+	} else {
+		body = JSON.parse(result.body);
+		print(body);
+	}
+}
+
+// update the netPower from mqtt message
+function UpdateNetPowerMQTT( topic, message){
+	netPower = message;
+}
 
 // send the virtual power meter reading to the requester
 function VirtualPowerMeterReadings( request, response, index){
 //    print(index);
 	var virtualPowerMeter = calculateVirtualPowerReadings( index);
-//	print("VPM: " + virtualPowerMeter);
-    response.body = JSON.stringify( { PWR : virtualPowerMeter } );
+//  print("VPM: " + virtualPowerMeter);
+	response.body = JSON.stringify( { PWR : virtualPowerMeter } );
 	response.code = 200;
-    response.send();
+	response.send();
 }
 
 // recieve new controller Power values 
