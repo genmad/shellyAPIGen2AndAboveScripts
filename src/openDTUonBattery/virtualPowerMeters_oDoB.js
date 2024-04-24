@@ -42,10 +42,10 @@ let scriptId=3;
 // in the cascade, the later are following then
 // nominalPower_Watt : the maximum power the controller can provide
 // minRequiredPower_Watt: the minimum Power required to run the controller/inverter,
-// mqttControllerBasicTopic : the basic topic of the controller given under mqtt
+// controllerIp: the ip of the odob controller ( inverter needs to be the first/only one registered (e.g.: position 0) at the given controller)
 let configs=[
-  		{ nominalPower_Watt: 100, minRequiredPower_Watt: 50, mqttControllerBasicTopic: 'solar/dtuOnBattery/'}
-	, 	{ nominalPower_Watt: 800, minRequiredPower_Watt: 80, mqttControllerBasicTopic: 'solar/dtuOnBattery2/'}
+  		{ nominalPower_Watt: 100, minRequiredPower_Watt: 50, controllerIp: '192.168.178.67'}
+	, 	{ nominalPower_Watt: 800, minRequiredPower_Watt: 80, controllerIp: '192.168.178.67'}
 ];
 
 //power measuring device
@@ -59,8 +59,9 @@ let mqttConfig = { topic: "solar/dtuOnBattery/ac/power" } // the topic of the po
 
 // configure http access ( path to the power reading)
 let httpConfig = {
-		 address: "http://192.168.178.67/api/livedata/status/inverters" // the address of the powerreading required
-		, jsonPath: "/em:0/total_act_power" // jsonPath for parsing the message for the powerreading
+		 address: "http://192.168.178.67/api/livedata/status" // the address of the http powerreading required
+		, jsonPath: "inverters.0.AC.0.Power.v" // jsonPath for parsing the message for the powerreading, seperate every field by a dot
+		// e.g.: inverters[0].name needs to be represented as: inverters.0.name
 	};
 
 	
@@ -99,7 +100,7 @@ function initialize(){
 		cumulatedPower = cumulatedPower + configs[i].nominalPower_Watt;
 		previousPower[i] =0;
 		if (configs[i].mqttControllerBasicTopic.substr(-1) != '/') configs[i].mqttControllerBasicTopic += '/';
-		MQTT.subscribe(configs[i].mqttControllerBasicTopic + "ac/power", UpdateControllerPower, i);
+		Timer.set(1000,true, controllerTimer, "http://" + configs[i].controllerIp + "/api/livedata/status");
 		HTTPServer.registerEndpoint( "pwr" + (i+1) , VirtualPowerMeterReadings, i)
 	}
 	// configure netPower readings
@@ -120,6 +121,7 @@ function initialize(){
 		case 'http':
 			// call every second, repeatedly, the httpTimer function
 			Timer.set(1000,true, httpTimer);
+			httpConfig.jsonPath = httpConfig.jsonPath.split(".");
 			break;
 	}
 }
@@ -128,6 +130,12 @@ function initialize(){
 function httpTimer( userdata){
 	Shelly.call("HTTP.GET", {url: httpConfig.address}, processHttpResponseForNetPower);
 }
+
+// cyclicly update the inverter power when http is configured
+function httpTimer( controllerUrl){
+	Shelly.call("HTTP.GET", {url: controllerUrl}, processHttpResponseForInverterPower);
+}
+
 
 // process the http Response of the power Meter configured with http polling
 function processHttpResponseForNetPower( result, error_code, error) {
@@ -139,9 +147,29 @@ function processHttpResponseForNetPower( result, error_code, error) {
 		print(error);
 	} else {
 		body = JSON.parse(result.body);
-		print(body);
+		// dynamically parse the unknown body from a split up string
+		for(i=0; i < httpConfig.jsonPath.length; i++){
+			body = body[httpConfig.jsonPath[i]];
+		}
+		netPower = body;
+		print("NetPower: " + netPower);
 	}
 }
+
+// process the http Response of the power Meter configured with http polling
+function processHttpResponseForInvreterPower( result, error_code, error) {
+	if (error_code != 0) {
+		// something went wrong ... what shall we do?? ( with a drunken sailor?)
+		print("HttpRequest to controller Failed with error code: ");
+		print(error_code);
+		print("\nand Error: ")
+		print(error);
+	} else {
+		body = JSON.parse(result.body);
+		// dynamically parse the unknown body from a split up string
+		
+	}
+
 
 // update the netPower from mqtt message
 function UpdateNetPowerMQTT( topic, message){
