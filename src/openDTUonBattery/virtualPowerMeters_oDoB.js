@@ -51,11 +51,7 @@ let configs=[
 //power measuring device
 	// choose between "local" e.g. this script is running on a gen2 device which can measure net power ( nothing else needs to be configured for the powerreading)
 	// or "http" e.g. pulls the power readings by http requests ( configure http settings in httpConfig underneath)
-	// or "mqtt" get the power readings delivered by mqtt topic ( configure mqtt settings in mqttConfig underneath)
-let netPowerConfig = "http" // choose one off "local", "mqtt" or "http"
-
-// configure mqtt access ( path to the power reading)
-let mqttConfig = { topic: "solar/dtuOnBattery/ac/power" } // the topic of the powerreading required for mqtt
+let netPowerConfig = "http" // choose one off "local" or "http"
 
 // configure http access ( path to the power reading)
 let httpConfig = {
@@ -95,18 +91,17 @@ let generatedPower = 0;
 function initialize(){  
 	var cumulatedPower =0;
 	//distribute callbacks by timer to distribute cpu load
-	nrHttpRequest = configs.length;
-	if ( "http" == netPowerConfig.toLowerCase()){
-		nrHttpRequest = nrHttpRequest + 1;
-	}
+//	nrHttpRequest = configs.length;
+//	if ( "http" == netPowerConfig.toLowerCase()){
+//		nrHttpRequest = nrHttpRequest + 1;
+//	}
 	// configure virtualPowerMeter readings
 	for (var i = 0; i < configs.length; i++) {
 		startPower[i] = cumulatedPower;
 		cumulatedPower = cumulatedPower + configs[i].nominalPower_Watt;
 		previousPower[i] =0;
-		if (configs[i].mqttControllerBasicTopic.substr(-1) != '/') configs[i].mqttControllerBasicTopic += '/';
 		// wait until it is time to start the timer. To distribute cpu load during callbacks // is this useful at all??? 
-		sleep( i*2500/nrHttpRequest);
+//		sleep( i*2500/nrHttpRequest);
 		// call twice during a normal hoymiles cycle (5 seconds)
 		dict = {url: "http://" + configs[i].controllerIp + "/api/livedata/status", index: i}
 		Timer.set( 2500, true, controllerTimer, dict);
@@ -124,11 +119,8 @@ function initialize(){
 				}
 				, null);
 			break;
-		case 'mqtt':
-			MQTT.subscribe(mqttConfig.topic, UpdateNetPowerMQTT);
-			break;
 		case 'http':
-			sleep( configs.length * 2500 / nrHttpRequest);
+//			sleep( configs.length * 2500 / nrHttpRequest);
 			// calls repeatedly, the httpTimer function
 			Timer.set( 2500, true, powerMeterTimer);
 			httpConfig.jsonPath = httpConfig.jsonPath.split(".");
@@ -142,18 +134,8 @@ function powerMeterTimer( userdata){
 }
 
 // cyclicly update the inverter power when http is configured
-function controlerTimer( dict){
+function controllerTimer( dict){
 	Shelly.call("HTTP.GET", {url: dict.url}, processHttpResponseForInverterPower, dict.index);
-	
-//  Shelly.call("HTTP.GET", {"url": "http://192.168.178.67/api/livedata/status/"}, 
-//    function (res, error_code, error_msg, userdata){
-//            print(res);
-//            print(error_code);
-//            print(error_msg);
-//            print(userdata);
-//        },
-//        1);	
-	
 }
 
 
@@ -172,7 +154,7 @@ function processHttpResponseForNetPower( result, error_code, error) {
 			body = body[httpConfig.jsonPath[i]];
 		}
 		netPower = body;
-		print("NetPower: " + netPower);
+//		print("NetPower: " + netPower);
 	}
 }
 
@@ -191,11 +173,6 @@ function processHttpResponseForInverterPower( result, error_code, error, index) 
 	}
 }
 
-// update the netPower from mqtt message
-function UpdateNetPowerMQTT( topic, message){
-	netPower = message;
-}
-
 // send the virtual power meter reading to the requester
 function VirtualPowerMeterReadings( request, response, index){
 //    print(index);
@@ -209,9 +186,8 @@ function VirtualPowerMeterReadings( request, response, index){
 // recieve new controller Power values 
 function UpdateControllerPower( newPower, index){
 	generatedPower = generatedPower - previousPower[index] + newPower;
-//	print("GenPower: " + generatedPower);
 	previousPower[index] = newPower;
-	print("GeneratedPower: " + generatedPower + " NewPower: " + newPower);
+//	print("GeneratedPower: " + generatedPower + " NewPower: " + newPower);
 }
 
 // calculate the power which is seen by the virtual power meter of index
