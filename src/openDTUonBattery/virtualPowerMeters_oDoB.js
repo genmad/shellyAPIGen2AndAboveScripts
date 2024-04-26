@@ -45,7 +45,7 @@ let scriptId=3;
 // controllerIp: the ip of the odob controller ( inverter needs to be the first/only one registered (e.g.: position 0) at the given controller)
 let configs=[
   		{ nominalPower_Watt: 100, minRequiredPower_Watt: 50, controllerIp: '192.168.178.67'}
-	, 	{ nominalPower_Watt: 800, minRequiredPower_Watt: 80, controllerIp: '192.168.178.67'}
+	, 	{ nominalPower_Watt: 800, minRequiredPower_Watt: 80, controllerIp: '192.168.178.68'}
 ];
 
 //power measuring device
@@ -94,13 +94,22 @@ let generatedPower = 0;
 // and configure power readings
 function initialize(){  
 	var cumulatedPower =0;
+	//distribute callbacks by timer to distribute cpu load
+	nrHttpRequest = configs.length;
+	if ( "http" == netPowerConfig.toLowerCase()){
+		nrHttpRequest = nrHttpRequest + 1;
+	}
 	// configure virtualPowerMeter readings
 	for (var i = 0; i < configs.length; i++) {
 		startPower[i] = cumulatedPower;
 		cumulatedPower = cumulatedPower + configs[i].nominalPower_Watt;
 		previousPower[i] =0;
 		if (configs[i].mqttControllerBasicTopic.substr(-1) != '/') configs[i].mqttControllerBasicTopic += '/';
-		Timer.set(1000,true, controllerTimer, "http://" + configs[i].controllerIp + "/api/livedata/status");
+		// wait until it is time to start the timer. To distribute cpu load during callbacks // is this useful at all??? 
+		sleep( i*2500/nrHttpRequest);
+		// call twice during a normal hoymiles cycle (5 seconds)
+		dict = {url: "http://" + configs[i].controllerIp + "/api/livedata/status", index: i}
+		Timer.set( 2500, true, controllerTimer, dict);
 		HTTPServer.registerEndpoint( "pwr" + (i+1) , VirtualPowerMeterReadings, i)
 	}
 	// configure netPower readings
@@ -119,21 +128,32 @@ function initialize(){
 			MQTT.subscribe(mqttConfig.topic, UpdateNetPowerMQTT);
 			break;
 		case 'http':
-			// call every second, repeatedly, the httpTimer function
-			Timer.set(1000,true, httpTimer);
+			sleep( configs.length * 2500 / nrHttpRequest);
+			// calls repeatedly, the httpTimer function
+			Timer.set( 2500, true, powerMeterTimer);
 			httpConfig.jsonPath = httpConfig.jsonPath.split(".");
 			break;
 	}
 }
 
 // cyclicly update the net power when http is configured
-function httpTimer( userdata){
+function powerMeterTimer( userdata){
 	Shelly.call("HTTP.GET", {url: httpConfig.address}, processHttpResponseForNetPower);
 }
 
 // cyclicly update the inverter power when http is configured
-function httpTimer( controllerUrl){
-	Shelly.call("HTTP.GET", {url: controllerUrl}, processHttpResponseForInverterPower);
+function controlerTimer( dict){
+	Shelly.call("HTTP.GET", {url: dict.url}, processHttpResponseForInverterPower, dict.index);
+	
+//  Shelly.call("HTTP.GET", {"url": "http://192.168.178.67/api/livedata/status/"}, 
+//    function (res, error_code, error_msg, userdata){
+//            print(res);
+//            print(error_code);
+//            print(error_msg);
+//            print(userdata);
+//        },
+//        1);	
+	
 }
 
 
@@ -157,7 +177,7 @@ function processHttpResponseForNetPower( result, error_code, error) {
 }
 
 // process the http Response of the power Meter configured with http polling
-function processHttpResponseForInvreterPower( result, error_code, error) {
+function processHttpResponseForInverterPower( result, error_code, error, index) {
 	if (error_code != 0) {
 		// something went wrong ... what shall we do?? ( with a drunken sailor?)
 		print("HttpRequest to controller Failed with error code: ");
@@ -166,10 +186,10 @@ function processHttpResponseForInvreterPower( result, error_code, error) {
 		print(error);
 	} else {
 		body = JSON.parse(result.body);
-		// dynamically parse the unknown body from a split up string
-		
+		newPower = body.inverters[0].AC[0].Power.v;
+		UpdateControllerPower( newPower, index);
 	}
-
+}
 
 // update the netPower from mqtt message
 function UpdateNetPowerMQTT( topic, message){
@@ -187,11 +207,11 @@ function VirtualPowerMeterReadings( request, response, index){
 }
 
 // recieve new controller Power values 
-function UpdateControllerPower( topic, message, index){
-	var newPower = message;
+function UpdateControllerPower( newPower, index){
 	generatedPower = generatedPower - previousPower[index] + newPower;
 //	print("GenPower: " + generatedPower);
-	previousPower[index] = 	newPower;	
+	previousPower[index] = newPower;
+	print("GeneratedPower: " + generatedPower + " NewPower: " + newPower);
 }
 
 // calculate the power which is seen by the virtual power meter of index
