@@ -32,10 +32,10 @@
 *
 **/
 
-// version 0.1.1
+// version 0.1.2
 
 
-// set script ID here
+// set unique script ID here !!! be aware no other script on your shelly can have the same id !!! ( It does not matter whether they are running or not)
 let scriptId=3;
  
 // configuration for each controller, add as many as you have controller ( there is an upper limit off 5 controllers defined by the
@@ -70,7 +70,7 @@ let httpConfig = {
 // e.g. assume the ip of the shelly on which this script runs on to be: 1.2.3.4, 
 // the script id of this script to be 7 and you want to configure the 2nd  odob controller
 // then use:  http://1.2.3.4/script/7/pwr2
-// the Json path is always pwr
+// the Json path is always 'PWR'
 
 
 // -------------------------------------------------- configure above this line, don't touch anything underneath this line !!! -------------------------------------------
