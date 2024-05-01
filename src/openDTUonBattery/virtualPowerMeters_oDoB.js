@@ -32,7 +32,7 @@
 *
 **/
 
-// version 0.1.2
+// version 0.1.3
 
 
 // set unique script ID here !!! be aware no other script on your shelly can have the same id !!! ( It does not matter whether they are running or not)
@@ -75,6 +75,12 @@ let httpConfig = {
 
 // -------------------------------------------------- configure above this line, don't touch anything underneath this line !!! -------------------------------------------
 
+// factor to influence the waiting till the next call for NetPower and InverterPower
+let DELAY = 5;
+
+// THreshold for successively not repsnding devices ( threshold for each individually)
+let TIMEOUT_THRESHOLD = 10;
+
 // the last power reading off each controller
 let previousPower = [];
 
@@ -89,20 +95,24 @@ let generatedPower = 0;
 
 let ONE_SECOND = 1000;
 
+let TimeOutCounter = [];
+
 // initialize the previous step power for each controller,
 // register to mqtt topics 
 // create http endpoints
 // and configure power readings
 function initialize(){  
+	TimeOutCounter[0] =0;
 	var cumulatedPower =0;
 	// configure virtualPowerMeter readings
 	for (var i = 0; i < configs.length; i++) {
+		TimeOutCounter[i+1] =0;
 		startPower[i] = cumulatedPower;
 		cumulatedPower = cumulatedPower + configs[i].nominalPower_Watt;
 		previousPower[i] =0;
 		// call twice during a normal hoymiles cycle (5 seconds)
 		dict = {url: "http://" + configs[i].controllerIp + "/api/livedata/status?inv=" + configs[i].inverterSerialNumber, index: i}
-		Timer.set( 2.5 * ONE_SECOND, true, controllerTimer, dict);
+		controllerCall( dict);
 		HTTPServer.registerEndpoint( "pwr" + (i+1) , VirtualPowerMeterReadings, i)
 	}
 	// configure netPower readings
@@ -119,25 +129,28 @@ function initialize(){
 			break;
 		case 'http':
 			// calls repeatedly, the httpTimer function
-			Timer.set( ONE_SECOND, true, powerMeterTimer);
+			powerMeterCall();
 			httpConfig.jsonPath = httpConfig.jsonPath.split("/");
 			break;
 	}
 }
 
 // cyclicly update the net power when http is configured
-function powerMeterTimer( userdata){
+function powerMeterCall( userdata){
 	Shelly.call("HTTP.GET", {url: httpConfig.address}, processHttpResponseForNetPower);
 }
 
 // cyclicly update the inverter power when http is configured
-function controllerTimer( dict){
-	Shelly.call("HTTP.GET", {url: dict.url}, processHttpResponseForInverterPower, dict.index);
+function controllerCall( dict){
+	Shelly.call("HTTP.GET", {url: dict.url}, processHttpResponseForInverterPower, dict);
 }
 
 
 // process the http Response of the power Meter configured with http polling
 function processHttpResponseForNetPower( result, error_code, error) {
+	if (TimeOutCounter[0] > TIMEOUT_THRESHOLD){
+		throw {name : "NetPowerNotResponding", message : "Your net power provider did not answer for a while. This script will be terminated now."};
+	}
 	if (error_code != 0) {
 		netPower = 0;
 		// something went wrong ... what shall we do?? ( with a drunken sailor?)
@@ -145,6 +158,7 @@ function processHttpResponseForNetPower( result, error_code, error) {
 		print(error_code);
 		print("\nand Error: ")
 		print(error);
+		TimeOutCounter[0]++;
 	} else {
 		// no try catch here! let them crash on start immediately and if ever somethig changes let them also crash!!! So the user will faster know something is wrong
 		body = JSON.parse(result.body);
@@ -153,24 +167,33 @@ function processHttpResponseForNetPower( result, error_code, error) {
 			body = body[httpConfig.jsonPath[i]];
 		}
 		netPower = body;
+		TimeOutCounter[0] = 0;
 //		print("NetPower: " + netPower);
 	}
+	Timer.set( DELAY * ONE_SECOND, false, powerMeterCall);
 }
 
 // process the http Response of the power Meter configured with http polling
-function processHttpResponseForInverterPower( result, error_code, error, index) {
+function processHttpResponseForInverterPower( result, error_code, error, dict) {
+	if (TimeOutCounter[dict.index + 1 ] > TIMEOUT_THRESHOLD){
+		throw {name : "ControllerNotResponding", message : "Your Controller: " + dict.index + " did not answer for a while. This script will be terminated now."};
+	}
+
 	if (error_code != 0) {
 		// something went wrong ... what shall we do?? ( with a drunken sailor?)
-		print("function processHttpResponseForInverterPower: HttpRequest to controller '" + configs[index].controllerIp + "'' Failed with error code: ");
+		print("function processHttpResponseForInverterPower: HttpRequest to controller '" + configs[dict.index].controllerIp + "'' Failed with error code: ");
 		print(error_code);
 		print("\nand Error: ")
 		print(error);
+		TimeOutCounter[dict.index+1]++;
 	} else {
 		// no try catch here! let them crash on start immediately and if ever somethig changes let them also crash!!! So the user will faster know something is wrong
 		body = JSON.parse(result.body);
 		newPower = body.inverters[0].AC[0].Power.v;
-		UpdateControllerPower( newPower, index);
+		TimeOutCounter[dict.index+1] =0;
+		UpdateControllerPower( newPower, dict.index);
 	}
+	Timer.set( DELAY * ONE_SECOND, false, controllerCall, dict);
 }
 
 // send the virtual power meter reading to the requester
