@@ -30,6 +30,18 @@
 * are connected to the same DC power supply system 
 * ( solarpanels and batteries).
 *
+* Please be also aware, that when observing the system with MQTT values,
+* that there will be issues that not always will everything fit together 
+* properly. MQTT values will be delayed by the odob controller. So do not 
+* assume that an MQTT reading will reflect the timely correct status of 
+* the system. We tested it and found out that they only match approximately
+* because different values might be posted in different time slices, so that
+* what you see might not be what you really have.
+*
+* We recommend to set on each odob controller in the dynamic power limiter settings
+* the target grid consumption to 0 and set the variable targetGridConsumption_Watt 
+* in this skript to achieve the same thing.
+*
 **/
 
 // version 0.1.3
@@ -54,7 +66,7 @@ let configs=[
 //power measuring device
 	// choose between "local" e.g. this script is running on a gen2 device which can measure net power ( nothing else needs to be configured for the powerreading)
 	// or "http" e.g. pulls the power readings by http requests ( configure http settings in httpConfig underneath)
-let netPowerConfig = "http" // choose one off "local" or "http"
+let netPowerConfig = "http" // choose one: "local" or "http"
 
 // configure http access ( path to the power reading)
 let httpConfig = {
@@ -71,6 +83,11 @@ let httpConfig = {
 // the script id of this script to be 7 and you want to configure the 2nd  odob controller
 // then use:  http://1.2.3.4/script/7/pwr2
 // the Json path is always 'PWR'
+
+// set this value to the target grid consumption as defined in odob controller instead of spreadig up the values across all your odob Controllers 
+// set in each of the odob controller the target grid consumption then to 0
+// negative values feed power to th net positive values recieve power from the net
+let targetGridConsumption_Watt = 0;
 
 
 // -------------------------------------------------- configure above this line, don't touch anything underneath this line !!! -------------------------------------------
@@ -122,7 +139,7 @@ function initialize(){
 				function(event, userdata){
 					// Runs when a new Power reading is comming in
 					if (typeof event.delta.total_act_power !== "undefined") {
-						netPower = event.delta.total_act_power;
+						netPower = event.delta.total_act_power - targetGridConsumption_Watt;
 					}
 				}
 				, null);
@@ -166,7 +183,7 @@ function processHttpResponseForNetPower( result, error_code, error) {
 		for(i=0; i < httpConfig.jsonPath.length; i++){
 			body = body[httpConfig.jsonPath[i]];
 		}
-		netPower = body;
+		netPower = body - targetGridConsumption_Watt;
 		TimeOutCounter[0] = 0;
 //		print("NetPower: " + netPower);
 	}
