@@ -98,6 +98,9 @@ let DELAY = 5;
 // THreshold for successively not repsnding devices ( threshold for each individually)
 let TIMEOUT_THRESHOLD = 10;
 
+// Threshold for no HTTP responses [minutes]
+let TIMEOUT_NETWORK = 1;
+
 // the last power reading off each controller
 let previousPower = [];
 
@@ -112,7 +115,11 @@ let generatedPower = 0;
 
 let ONE_SECOND = 1000;
 
+let ONE_MINUTE = 60 * ONE_SECOND;
+
 let TimeOutCounter = [];
+
+let TimerHandles = [];
 
 // initialize the previous step power for each controller,
 // register to mqtt topics 
@@ -139,7 +146,7 @@ function initialize(){
 				function(event, userdata){
 					// Runs when a new Power reading is comming in
 					if (typeof event.delta.total_act_power !== "undefined") {
-						netPower = event.delta.total_act_power - targetGridConsumption_Watt;
+						netPower = event.delta.total_act_power;
 					}
 				}
 				, null);
@@ -154,12 +161,29 @@ function initialize(){
 
 // cyclicly update the net power when http is configured
 function powerMeterCall( userdata){
+	// safeguarding No HTTP calls -> kill yourself if not updated 
+	Timer.clear(TimerHandles[configs.length]);	
+	TimerHandles[configs.length] = Timer.set(TIMEOUT_NETWORK * ONE_MINUTE, false, kill, configs.length);
 	Shelly.call("HTTP.GET", {url: httpConfig.address}, processHttpResponseForNetPower);
+	
 }
 
 // cyclicly update the inverter power when http is configured
 function controllerCall( dict){
+	// safeguarding No HTTP calls -> kill yourself if not updated 
+	Timer.clear(TimerHandles[dict.index]);	
+	TimerHandles[dict.index] = Timer.set(TIMEOUT_NETWORK * ONE_MINUTE, false, kill, dict.index);
 	Shelly.call("HTTP.GET", {url: dict.url}, processHttpResponseForInverterPower, dict);
+}
+
+function kill( index){
+	var message = "";
+	if ( configs.length == index ){
+		message = "No response off Power Reading for " + TIMEOUT_NETWORK + " minutes.";
+	}else{
+		message = "No response off " + configs[index].controllerIp + " for " + TIMEOUT_NETWORK + " minutes.";
+	}
+	throw new Error(message);	
 }
 
 
@@ -183,7 +207,7 @@ function processHttpResponseForNetPower( result, error_code, error) {
 		for(i=0; i < httpConfig.jsonPath.length; i++){
 			body = body[httpConfig.jsonPath[i]];
 		}
-		netPower = body - targetGridConsumption_Watt;
+		netPower = body;
 		TimeOutCounter[0] = 0;
 //		print("NetPower: " + netPower);
 	}
@@ -235,11 +259,15 @@ function UpdateControllerPower( newPower, index){
 function calculateVirtualPowerReadings( index){
 	var powerOffAllOtherInverters = generatedPower - previousPower[index];
 //	print([generatedPower, previousPower[index]])
-	var virtualPowerMeter = netPower + powerOffAllOtherInverters - startPower[index];
+	var virtualPowerMeter = netPower - targetGridConsumption_Watt + powerOffAllOtherInverters - startPower[index];
 //  limiting the power so that at least each controller recieves its minimum power configured
 	var limitedPowerMeter = Math.max( configs[index].minRequiredPower_Watt - previousPower[index], virtualPowerMeter);
+//  limitedPowerMeter values tell odob 
+//. when negative: reduce the power of the inverter by that ammount, 
+//  when positive: increase the power of the inverter by that ammount
+
 //	print("Index: " + index);
-//	print("Netpower: " + netpower);
+//	print("Netpower: " + netPower);
 //	print("VirtualPowerMeter: " + virtualPowerMeter)
 //	print("limitedPowerMeter: " + limitedPowerMeter)
 	return limitedPowerMeter;
