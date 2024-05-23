@@ -53,7 +53,7 @@ let scriptId=4;
 // inverterSerialNumber: the serial number of the inverter to control as shown in oDoB ( settings -> inverter -> serial number)
 let configs=[
   		{ nominalPower_Watt: 100, minRequiredPower_Watt: 50, controllerIp: '192.168.178.67', inverterSerialNumber: 116182803975}
-//	, 	{ nominalPower_Watt: 800, minRequiredPower_Watt: 80, controllerIp: '192.168.178.68', inverterSerialNumber: 000}
+	, 	{ nominalPower_Watt: 800, minRequiredPower_Watt: 80, controllerIp: '192.168.178.68', inverterSerialNumber: 000}
 ];
 
 //power measuring device
@@ -119,6 +119,7 @@ function initialize(){
 	}
 	// configure virtualPowerMeter readings
 	for (var i = 0; i < configs.length; i++) {
+		print(" Configs: " + i);
 		TimeOutCounter[i+1] =0;
 		previousPower[i] =0;
 		dict = {url: "http://" + configs[i].controllerIp + "/api/livedata/status?inv=" + configs[i].inverterSerialNumber, index: i}
@@ -158,6 +159,7 @@ function powerMeterCall( userdata){
 // cyclicly update the inverter power when http is configured
 function controllerCall( dict){
 	// safeguarding No HTTP calls -> kill yourself if not updated 
+	print("ControllerCall: " + dict.index );
 	Timer.clear(TimerHandles[dict.index]);	
 	TimerHandles[dict.index] = Timer.set(TIMEOUT_NETWORK * ONE_MINUTE, false, kill, dict.index);
 	Shelly.call("HTTP.GET", {url: dict.url}, processHttpResponseForInverterPower, dict);
@@ -185,7 +187,9 @@ function processHttpResponseForNetPower( result, error_code, error) {
 		print("function processHttpResponseForNetPower HttpRequest to powerMeter Failed with error code: ");
 		print(error_code);
 		print("\nand Error: ")
-		print(error);
+		if( typeof error !== 'undefined'){
+			print(error);
+		}
 		TimeOutCounter[0]++;
 	} else {
 		// no try catch here! let them crash on start immediately and if ever somethig changes let them also crash!!! So the user will faster know something is wrong
@@ -198,7 +202,6 @@ function processHttpResponseForNetPower( result, error_code, error) {
 		TimeOutCounter[0] = 0;
 //		print("NetPower: " + netPower);
 	}
-	Timer.set( DELAY * ONE_SECOND, false, powerMeterCall);
 }
 
 // process the http Response of the inverter configured with http polling
@@ -221,7 +224,6 @@ function processHttpResponseForInverterPower( result, error_code, error, dict) {
 		TimeOutCounter[dict.index+1] =0;
 		UpdateControllerPower( newPower, dict.index);
 	}
-	Timer.set( DELAY * ONE_SECOND, false, controllerCall, dict);
 }
 
 // send the virtual power meter reading to the requester
