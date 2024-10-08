@@ -13,6 +13,11 @@
 
 // virtualPowerMeters_oDoB_parallel.js
 
+// The OpenDTU-onBattery boards should not query the Shelly script while starting it!
+// Otherwise it gives weird run-time errors and stops.
+// Workaround (for example): change in Powermeter of the ODoB the URL http://shelly.fritz.box/script/2/pwr1 to http://shelly.fritz.box/script/2/pwr11 and save it.
+// Do this for both boards. Then stop the Shelly script, modify it, and start it again. Then activate both boards again by setting the URL again right and save again.
+
 /**
 	*
 	* Virtual powermeter for open DTU on Battery (oDoB)
