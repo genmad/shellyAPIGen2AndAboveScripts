@@ -63,6 +63,11 @@
 	*
 **/
 
+// Testlinks
+// http://oob.fritz.box/api/livedata/status?inv=116183773414
+// http://odob.fritz.box/api/livedata/status?inv=138291601012
+// http://shelly.fritz.box/script/2/pwr2
+
 // set this value to the target grid consumption as defined in odob controller instead of spreadig up the values across all your odob Controllers 
 // set in each of the odob controller the target grid consumption then to 0
 // negative values feed power to th net positive values recieve power from the net
@@ -70,7 +75,7 @@ let targetGridConsumption_Watt = 10;
 
 // Cascade or parallel mode
 if (0){
-	let algo_mode = "cascade"; // choose one: "cascade" or "parallel"
+	let algo_mode = "cascade";
 }
 else {
 	let algo_mode = "parallel"; 
@@ -82,11 +87,6 @@ let powerSplitThreshold = 115;
 // Distribution over inverters
 let powerSplitWeight = [0.412, 0.588];
 
-// factor to influence the waiting till the next call for NetPower and InverterPower
-let DELAY = 0.9;
-
-// Settling time inverter, at this timescale difference between set and get are most probably constant
-let COUNTER_CHG = Math.round(5/DELAY); 
 
 // set unique script ID here !!! be aware no other script on your shelly can have the same id !!! ( It does not matter whether they are running or not)
 let scriptId=2;
@@ -132,10 +132,14 @@ let httpConfig = {
 
 // -------------------------------------------------- configure above this line, don't touch anything underneath this line !!! -------------------------------------------
 
-
+// factor to influence the waiting till the next call for NetPower and InverterPower
+let DELAY = 0.9;
 
 // Counter for the number of updates on the inverter
 let COUNTER = []; 
+
+// Settling time inverter, at this timescale difference between set and get are most probably constant
+let COUNTER_CHG = Math.round(3/DELAY); 
 
 // Difference set limit and actual produced power, after settling time
 let wr_set_get_mismatch = [];
